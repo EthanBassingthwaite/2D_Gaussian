@@ -39,6 +39,7 @@ from io import BytesIO
 #basically I made a 'fake' google account for the computer to access
 gauth = GoogleAuth()
 SCOPES = ['https://www.googleapis.com/auth/drive']
+
 gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name('client_secrets.json', SCOPES)
 drive = GoogleDrive(gauth)
 
@@ -118,7 +119,7 @@ RESID_TOLERANCE = 0.10
 #catalog_name = "DR2-YBclass30-40_wID.csv" # 30-40 degree YB DR2 catalog, coords in galactic & degrees, Sarah's categories. Columns are:
 #ID GLON	GLAT	r	Bubble	Classic/bubble rim	Classic/inside bubble	Filament/ISM morphology	Classic/on filament	Pillar/Point Source	Point source Plus	Faint fuzzy	Classic/faint fuzzy	Classic YB	Unsure	Notes
 
-output_directory = ''
+output_directory = '2DGaussianOutputs/'
 outfilename = output_directory + '2D_Gaussian_Fits.csv'
 
 #########################################################################################################
@@ -553,7 +554,7 @@ class AstroImage:
             plt.close()'''
             
 
-    def show_gaussian(self, index, f):
+    def show_gaussian(self, index):
         #If photometry was not conducted for either 8 or 24, then do nothing
         if self.residuals.skip8 and self.residuals.skip24:
             return 0
@@ -685,18 +686,37 @@ class AstroImage:
         #end of the all_data string, before the endline probably.
         
         cut_val, cut_string = self.auto_categorizer(fit8, fit24, resid8, resid24, residratio8, residratio24)
-        
+        print(cut_string, "cutstring")
         #source_metadata = '%s, %s, %s, %s' % (data[index]['ID'], data[index]['GLON'], data[index]['GLAT'], data[index]['r'])
         
         # Minus 1 to match YBID to index position
-        source_metadata = '%s, %s, %s, %s' % (data[index-1]['YB'], data[index-1]['l'], data[index-1]['b'], data[index-1]['r'])
-        d8 =  d8 + ' %s, %s' % (totalresid8, residratio8)
-        d24 = d24+ ' %s, %s' % (totalresid24, residratio24)
+        source_metadata = '%s,%s,%s' % (data[index-1]['l'], data[index-1]['b'], data[index-1]['r'])
+        d8 =  d8 + '%s,%s' % (totalresid8, residratio8)
+        d24 = d24+ '%s,%s' % (totalresid24, residratio24)
         
 #        all_data = source_metadata+','+ d8 +','+ d24 +', %s, %s, '%(dist_between(rmean8, rmean24)*self.delta*3600, patch_flag) + get_category(index)
-        all_data = source_metadata+','+ d8 +','+ d24 +', %s, %s, %s'%(dist_between(rmean8, rmean24)*self.delta*3600, patch_flag, cut_string)      
-        all_data +=  ',%s \n' %(cut_val)      
-        f.write(all_data) # dump everything to the spreadsheet
+        all_data = source_metadata+','+ d8 +','+ d24 +',%s,%s,%s'%(dist_between(rmean8, rmean24)*self.delta*3600, patch_flag, cut_string)      
+        all_data +=  ',%s' %(cut_val) #',%s \n' %(cut_val)  
+        #print(all_data)
+        
+        '''pd.Series([data[index-1]['YB'], data[index-1]['l'], data[index-1]['b'], data[index-1]['r'], 
+                      totalresid8, residratio8, totalresid24, residratio24, 
+                      dist_between(rmean8, rmean24)*self.delta*3600, patch_flag, cut_string,
+                      cut_val])'''
+        '''YB ID, l, b, User Radius, 
+        8um Amplitude (MJy/Sr),D[8um Amplitude], 
+        8um x mean (pix), D[8um x mean ], 8um y mean (pix), D[8um y mean] ,8um dist from center (pix), 8um x sd dev (arcsec), D[8um x sd dev ], 8um y st dev (arcsec), D[8um y st dev], 8 um theta, D[8 um theta],\
+        8um residual (Jy), 8um residual/input flux (ratio), 24um amplitude (MJy/Sr), D[24um amplitude, 24um x mean (pix), D[24um x mean], 24um y mean (pix), D[24um y mean], 
+        24um Dist from center (pix),24um x sd dev (arcsec), D[24um x sd dev], 24um y st dev (arcsec), D[24um y st dev ], 24um theta, D[24um theta], 24um residual (Jy), 24um residual/input flux ratio, \
+        dist between means (arcsec), Patch Flag, classification string, cut value\n'''
+        
+        data_list =  [x.strip() for x in all_data.split(',')]
+        for i in range(0, len(data_list)-2):
+            data_list[i] = float(data_list[i])
+        data_list[-1] = float(data_list[-1])
+
+        df.loc[data[index-1]['YB']] = data_list
+        #f.write(all_data) # dump everything to the spreadsheet
         #print(f)
         #}
         
@@ -986,9 +1006,9 @@ class choose_image_api():
             path24 = 'MIPSGAL_03000_mosaic_reprojected.fits'
             path70 = 'PACS_70um_03000_mosaic.fits'
         elif l > 31.5 and l <= 34.5:
-            path8 = 'LM_03300+0000_mosaic_I4.fits'
+            path8 = 'GLM_03300+0000_mosaic_I4.fits'
             path12 = 'WISE_12um_03300_mosaic.fits'
-            path24 = 'IPSGAL_03300_mosaic_reprojected.fits'
+            path24 = 'MIPSGAL_03300_mosaic_reprojected.fits'
             path70 = 'PACS_70um_03300_mosaic.fits'
         elif l > 34.5 and l <= 37.5:
             path8 = 'GLM_03600+0000_mosaic_I4.fits'
@@ -1208,7 +1228,7 @@ class choose_image_api():
             path24 = 'SMOG_24um_10300_mosaic_high_b.fits'
             path70 = 'SMOG_PACS_70um_10300_mosaic.fits'
         elif l > 105.59 and l <= 110.2:
-            path8 = 'MOG_08um_10700_mosaic.fits'
+            path8 = 'SMOG_08um_10700_mosaic.fits'
             path12 = 'SMOG_12um_10700_mosaic.fits'
             path24 = 'SMOG_24um_10700_mosaic.fits'
             path70 = 'SMOG_PACS_70um_10700_mosaic.fits'
@@ -1220,7 +1240,7 @@ class choose_image_api():
             path24 = 'CYGX_24um_07500+0050_mosaic.fits'
             path70 = 'CYGX_70um_07500+0050_mosaic.fits'
         elif l > 76.5 and l <= 79.5 and b < 0.82:
-            path8 = 'YGX_08um_07800-0085_mosaic.fits'
+            path8 = 'CYGX_08um_07800-0085_mosaic.fits'
             path12 = 'CYGX_12um_07800-0085_mosaic.fits'
             path24 = 'CYGX_24um_07800-0085_mosaic.fits'
             path70 = 'CYGX_70um_07800-0085_mosaic.fits'
@@ -1559,15 +1579,17 @@ catalog_name = os.path.join(path, 'USE_THIS_CATALOG_ybcat_MWP_with_ID.csv')
 #reads files
 data = ascii.read(catalog_name, delimiter = ',')
 
-f = open(outfilename, 'w+')
-#if you add more columns make sure to add them here, otherwise topcat won't read the column headers right.
-#Also, if you have a stray comma running around, it'll screw up the topcat headers. 
-column_names = 'YB ID, l, b, User Radius, 8um Amplitude (MJy/Sr),D[8um Amplitude], \
-8um x mean (pix), D[8um x mean ], 8um y mean (pix), D[8um y mean] ,8um dist from center (pix), 8um x sd dev (arcsec), D[8um x sd dev ], 8um y st dev (arcsec), D[8um y st dev], 8 um theta, D[8 um theta],\
-8um residual (Jy), 8um residual/input flux (ratio), 24um amplitude (MJy/Sr), D[24um amplitude, 24um x mean (pix), D[24um x mean], 24um y mean (pix), D[24um y mean], 24um Dist from center (pix),\
-24um x sd dev (arcsec), D[24um x sd dev], 24um y st dev (arcsec), D[24um y st dev ], 24um theta, D[24um theta], 24um residual (Jy), 24um residual/input flux ratio, \
-dist between means (arcsec), Patch Flag, classification string, cut value\n'
-f.write(column_names)
+if not os.path.exists(output_directory):
+    # Create the folder if it doesn't exist
+    os.makedirs(output_directory)
+    
+    
+if not os.path.exists(outfilename):
+    #creats file if it doesnt exist
+    column_names = 'YB ID, l, b, User Radius, 8um Amplitude (MJy/Sr), D[8um Amplitude], 8um x mean (pix), D[8um x mean ], 8um y mean (pix), D[8um y mean], 8um dist from center (pix), 8um x sd dev (arcsec), D[8um x sd dev ], 8um y st dev (arcsec), D[8um y st dev], 8 um theta, D[8 um theta], 8um residual (Jy), 8um residual/input flux (ratio), 24um amplitude (MJy/Sr), D[24um amplitude, 24um x mean (pix), D[24um x mean], 24um y mean (pix), D[24um y mean], 24um Dist from center (pix), 24um x sd dev (arcsec), D[24um x sd dev], 24um y st dev (arcsec), D[24um y st dev ], 24um theta, D[24um theta], 24um residual (Jy), 24um residual/input flux ratio, dist between means (arcsec), Patch Flag, classification string, cut value'
+    df = pd.DataFrame(columns=column_names.split(', '))
+
+    df.to_csv(outfilename, index=False)
 
 '''YB1=data['ID'][0]
 YB2=YB1+len(data) '''
@@ -1576,27 +1598,33 @@ cuts_count = np.full(len(data), -1)
 #for i in range(1650,1655):
 #careful with range here to select the YBs for which you have background-subtracted, post photometry images
 #for i in range(1153,YB2):
-startYB = 690
-endYB = 710
+startYB = 1
+endYB = 6176
 Mosaics = choose_image_api()
-for i in range(startYB,endYB+1):  #2547  
-    '''if path.exists('./fits_cutouts/8_umresid_YB_%s.fits' %(i)) == True and path.exists('./fits_cutouts/24_umresid_YB_%s.fits' %(i)) == True:
-        twocolor_image30 = AstroImage(i)
-        j=i-YB1
-        twocolor_image30.show_gaussian(j, f)
-        print(i,j)'''
-    
+
+
+
+#check all mosaics except for 3028-3034 values
+for i in range(startYB, endYB+1): #range(startYB,endYB+1):  #2547  
+
+    df = pd.read_csv(outfilename, index_col='YB ID')
+
     twocolor_image30 = AstroImage(i, Mosaics)
     if not twocolor_image30.skip:
         print("YB", i)
-        twocolor_image30.show_gaussian(i, f)
-    
-        
-f.close()
+        twocolor_image30.show_gaussian(i)
 
-histdata = ascii.read("2D_Gaussian_Fits.csv", delimiter = ',')
-plt.hist(histdata["cut value"], range = [-0.5, 6.5], bins = 5, ec = 'black') #make sure you make it big enough to get all the cut categories, if any more get added
+    df.to_csv(outfilename, index=True)
+    
+    
+#f.close()
+
+histdata = ascii.read(output_directory + "2D_Gaussian_Fits.csv", delimiter = ',')
+cut_values = histdata["cut value"]
+cut_values = cut_values[~np.isnan(cut_values)]
+plt.hist(cut_values, range = [-0.5, 4.5], bins = 5, ec = 'black') #make sure you make it big enough to get all the cut categories, if any more get added
 plt.savefig(output_directory  + 'histogram.png')
 print('\a')
+
 
 
