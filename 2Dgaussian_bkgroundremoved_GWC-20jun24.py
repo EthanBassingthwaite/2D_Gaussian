@@ -1613,7 +1613,7 @@ for i in range(startYB, endYB+1): #range(startYB,endYB+1):  #2547
     if not twocolor_image30.skip:
         print("YB", i)
         twocolor_image30.show_gaussian(i)
-
+    df.sort_values(by='YB ID', inplace=True)
     df.to_csv(outfilename, index=True)
     
     
