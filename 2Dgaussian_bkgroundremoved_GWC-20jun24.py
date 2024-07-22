@@ -267,291 +267,8 @@ class AstroImage:
             #self.ybwcs = np.insert(self.ybwcs,n,[data[n]['GLON'],data[n]['GLAT']],axis=0)
             self.ybwcs = np.insert(self.ybwcs,n,[data[n]['l'],data[n]['b']],axis=0)
             self.pixcoords = self.w.wcs_world2pix(self.ybwcs, 1)
-        ########################################################################################
 
-    '''def show_gaussian(self, index, f):  #this is the one that gets called from the main program
 
-        #If photometry was not conducted for either 8 or 24, then do nothing
-        if self.residuals.skip8 and self.residuals.skip24:
-            return 0
-#12/22/22: Commenting out ifs that use get_category        
-#        if only_classic_ybs:
-#            if get_category(index) != '9':
-#                return
-    
-#        if only_not_classic_ybs:
-#            if get_category(index) == '9':
-#                return
-    
-#        if only_point_plusses:
-#            if get_category(index) != '6':
-#                return
-        
-#        if only_baby_bubbles:
-#            if get_category(index) != ''
-
-        # Minus 1 to match YBID to index position
-        usr_rr = data[index-1]['r']/self.delta
-
-        #fit_range = int(usr_rr * multiple_of_user_radius)
-        fit_range = 50
-        patch_flag = 0
-        
-#        image8 = self.image_data[8][yy-fit_range:yy+fit_range, xx-fit_range:xx+fit_range]   #doesn't check the 8um for saturation, because none of ours are saturated
-        image8 = self.image_data[8]  #doesn't check the 8um for saturation, because none of ours are saturated
-
-        
-        
-        x_axis, y_axis, fit8 , uncert8 = fit_2D_gaussian(index, image8, fit_range, usr_rr)            #but the image patcher works fine for both. Just set up an 8um flag and a 24um flag
-        print(uncert8)
-        
-#        image24, bad_pixel_map, patch_flag = self.image_patcher(self.image_data[24][yy-fit_range:yy+fit_range, xx-fit_range:xx+fit_range], patch_flag)
-        #image24, bad_pixel_map, patch_flag = self.image_patcher(self.image_data[24], patch_flag)
-        image24 = self.image_data[24]
-        x_axis, y_axis, fit24, uncert24 = fit_2D_gaussian(index, image24, fit_range, usr_rr)
-        print(uncert24)
-        if only_patchable_sources:
-            if patch_flag == -1:
-                return
-        
-        resid8 = image8 - fit8(x_axis, y_axis)
-        resid24 = image24 - fit24(x_axis, y_axis)
-        center = [0,0]
-        
-        #if you want to add a cut like the only_patchable_sources cut, I would probably do it here, or as soon as
-        #possible after you've computed all the things you need to check. That way you'll speed up the program as
-        #much as possible by not doing any more math than necessary.
-        
-        r = np.zeros(image8.shape)
-        g = np.zeros(image8.shape)
-        b = np.zeros(image8.shape)
-        
-
-        mean8 = [fit8.y_mean.value + image8.shape[0]/2,  fit8.x_mean.value + image8.shape[0]/2]
-        rmean8 = [fit8.y_mean.value, fit8.x_mean.value]
-        width8 = fit8.x_stddev.value * 2
-        height8 = fit8.y_stddev.value * 2
-        angle8 = fit8.theta.value
-        d8 = str(fit8.amplitude.value) +','+str(uncert8[0])+','+str(fit8.x_mean.value)+','+str(uncert8[1]) +','+ str(fit8.y_mean.value)+','+str(uncert8[2])
-        
-        mean24 = [fit24.y_mean.value + image24.shape[0]/2,  fit24.x_mean.value + image24.shape[0]/2]
-        rmean24= [fit24.y_mean.value, fit24.x_mean.value]
-        width24 = fit24.x_stddev.value * 2
-        height24 = fit24.y_stddev.value * 2
-        angle24 = fit24.theta.value
-        d24 = str(fit24.amplitude.value)+','+str(uncert24[0])+','+str(fit24.x_mean.value)+','+str(uncert24[1])+','+ str(fit24.y_mean.value)+','+str(uncert24[2])
-
-        d8 = d8 +', %s, %s, %s, %s, %s, %s, %s, ' %(dist_between(rmean8, center), fit8.x_stddev.value*self.delta*3600, uncert8[3]*self.delta*3600, fit8.y_stddev.value*self.delta*3600, uncert8[4]*self.delta*3600,angle8, uncert8[5])
-        d24=d24 +', %s, %s, %s, %s, %s, %s, %s, ' %(dist_between(rmean24, center), fit24.x_stddev.value*self.delta*3600, uncert24[3]*self.delta*3600, fit24.y_stddev.value*self.delta*3600,  uncert24[4]*self.delta*3600, angle24, uncert24[5])
-        
-        ell8 = mpl.patches.Ellipse(xy=mean8, width=width8, height=height8, angle = angle8, linestyle = ':', fill = False)
-        ell8w = mpl.patches.Ellipse(xy=mean8, width=width8, height=height8, angle = angle8, color = 'w', linestyle = ':', fill = False)
-        ell24 = mpl.patches.Ellipse(xy=mean24, width=width24, height=height24, angle = angle24, fill = False, linestyle = '--')
-        ell24w = mpl.patches.Ellipse(xy=mean24, width=width24, height=height24, angle = angle24, fill = False, color = 'w', linestyle = '--')
-        
-        # Minus 1 to match YBID to index position
-        usr_circle = Circle((image8.shape[0]/2, image8.shape[0]/2), data[index-1]['r'] / self.delta, \
-                            fill=False)
-        usr_circlew = Circle((image8.shape[0]/2, image8.shape[0]/2), data[index-1]['r'] / self.delta, \
-                             color='w', fill=False)
-        fig = plt.figure(figsize=(10,10))
-        #integrates the inputs and residuals, basically.
-        totalresid24= 0
-        totalresid8 = 0
-        total8 = 0
-        total24 =0
-    
-        #1/31/23: GWC - In the loop below, we will need to take the absolute value of the resid in each
-        #pixel to avoid having very large + and - values add to deceptively small totalresid values.
-        #2/15/23: GWC - absolute value doesn't lead to very useful results - it excludes too much,
-        #so going back to original cuts. Would a better way to exclude wildly +/- residuals be to 
-        #compare the fluctuations to the flux peak, or number of residual pixels that exceed a certain
-        #fraction of the peak?
-        for i in range(resid8.shape[0]):
-            for j in range(resid8.shape[1]):
- #               totalresid8 += abs(resid8[i][j])
- #               totalresid24 += abs(resid24[i][j])
-                totalresid8 += resid8[i][j]
-                totalresid24 += resid24[i][j]
-                total8 += image8[i][j] 
-                total24+= image24[i][j]
- #               total8 += abs(image8[i][j])
- #               total24 += abs(image24[i][j])
-        
-        #calculuate the ratio of residual flux to original flux prior to unit conversion        
-        residratio8 = abs(totalresid8/total8)
-        residratio24 = abs(totalresid24/total24)
-        
-        #1/31/23: GWC - Note total8 and total24 are not used elsewhere, but these are the integrated
-        #Gaussian fluxes. In principle, these could be compared to user photometry integrated fluxes.
-        #Here I will print total, totalresid, and residratio numbers as a check on what the code is doing.
-        #print('total8=', total8)
-        #print('total24=', total24)
-        #print('totalresid8=', totalresid8)
-        #print('totalresid24=', totalresid24)
-        #print('residratio8=', residratio8)
-        #print('residratio24=', residratio24)
-        ##          Unit Conversions Info         ##
-        # 8 um:
-        #GLIMPSE 8 um flux units are MJy/steradian
-        #obtain the 8 um pixel scale from the image header 
-        #this gives the degree/pixel conversion factor used for overdrawing circle
-        #and flux conversions (this is x direction only but they are equal in this case)
-        #8 um square degree to square pixel conversion-- x*y 
-        sqdeg_tosqpix8=self.delta*self.delta
-        #8 um steradian to pixel conversion (used to convert MJy/Pixel)
-        #     will be used to convert to MJy
-        str_to_pix8=sqdeg_tosqpix8*0.0003046118
-
-        totalresid8=totalresid8*str_to_pix8*10**6
-        totalresid24=totalresid24*str_to_pix8*10**6   
-        #print('totalresid8=', totalresid8)
-        #print('totalresid24=', totalresid24)
-        
-        #if you want to add a column to the spreadsheet to categorize things, I would write a function that returns
-        #whatever you decide the categories are (I'd do numbers, easier to deal with in excel) and apends it to the
-        #end of the all_data string, before the endline probably.
-        
-        cut_val, cut_string = self.auto_categorizer(fit8, fit24, resid8, resid24, residratio8, residratio24)
-        
-        #source_metadata = '%s, %s, %s, %s' % (data[index]['ID'], data[index]['GLON'], data[index]['GLAT'], data[index]['r'])
-        # Minus 1 to match YBID to index position
-        source_metadata = '%s, %s, %s, %s' % (data[index-1]['YB'], data[index-1]['l'], data[index-1]['b'], data[index-1]['r'])
-        d8 =  d8 + ' %s, %s' % (totalresid8, residratio8)
-        d24 = d24+ ' %s, %s' % (totalresid24, residratio24)
-        
-#        all_data = source_metadata+','+ d8 +','+ d24 +', %s, %s, '%(dist_between(rmean8, rmean24)*self.delta*3600, patch_flag) + get_category(index)
-        all_data = source_metadata+','+ d8 +','+ d24 +', %s, %s, %s'%(dist_between(rmean8, rmean24)*self.delta*3600, patch_flag, cut_string)      
-        all_data +=  ',%s \n' %(cut_val)      
-        print("cutvals", "cutstring")
-        print(cut_val, cut_string)
-        cuts_count[index] = cut_val
-        
-        
-
-        f.write(all_data) # dump everything to the spreadsheet
-        
-        if not make_plots:
-            return 0
-        #creates the plots
-        row = 3
-        column = 3
-        #rg image,
-        ax = plt.subplot(row, column,1, title = 'Image data', projection = self.w)
-        ax.add_patch(ell8)
-        ax.add_patch(ell24)
-        ax.add_patch(usr_circle)
-        r = image24
-        g = image8
-        ax.imshow(make_lupton_rgb(r, g, b, stretch=200, Q=0), norm=LogNorm())
-        
-        #rg residuals
-        ax2 = plt.subplot(row, column,2, title = 'residuals', projection = self.w)
-        r = resid24
-        g = resid8
-        ax2.imshow(make_lupton_rgb(r, g, b, stretch=200, Q=0), norm=LogNorm())
-        ax2.add_patch(ell8w)
-        ax2.add_patch(ell24w)
-        ax2.add_patch(usr_circlew)
-        
-        #plot of bad pixels and handy info
-        #12/22/22: Removing get_category from ax3
-        #ax3 = plt.subplot(row, column, 3, title = 'Patch flag:' + str(patch_flag)\
-        #                  +'\n Category: '+ get_category(index), projection = self.w)    
-        #ax3 = plt.subplot(row, column, 3, title = 'Patch flag:' + str(patch_flag),\
-        #                 projection = self.w)
-        #ax3.imshow(bad_pixel_map)
-      
-        #3d plot model 8um
-        ax3 = plt.subplot(row, column, 4, projection = '3d', title = '8um model')
-        surf = ax3.plot_surface(x_axis, y_axis, fit8(x_axis, y_axis))
-        
-        #3d plot data 8um
-        ax4 = plt.subplot(row, column, 5, projection = '3d', title = '8um data')
-        data3d = ax4.plot_surface(x_axis, y_axis, image8)
-
-        #3d plot model 24um
-        ax3 = plt.subplot(row, column, 7, projection = '3d', title = '24um model')
-        surf = ax3.plot_surface(x_axis, y_axis, fit24(x_axis, y_axis))
-        
-        #3d plot data 24um
-        ax4 = plt.subplot(row, column, 8, projection = '3d', title = '24um data')
-        data3d = ax4.plot_surface(x_axis, y_axis, image24)
-
-        if show_3D_residuals_in_plot:
-            #3d plot residual 8um
-            ax4 = plt.subplot(row, column, 6, projection = '3d', title = '8um residual')
-            ax4.set_zlim3d(top=100)
-            data3d = ax4.plot_surface(x_axis, y_axis, resid8)
-    
-            #3d plot residual 24um
-            ax4 = plt.subplot(row, column, 9, projection = '3d', title = '24um residual') #fix z scale to 100
-            ax4.set_zlim3d(top=100)
-            data3d = ax4.plot_surface(x_axis, y_axis, resid24)
-        else:
-            #2d fit with 1 sigma ellipse 8um
-            tester_mask = np.zeros(x_axis.shape)
-            tester_image = fit8(x_axis, y_axis)
-            
-            randx = npr.random() * x_axis.shape[0]/2
-            randy = npr.random() * x_axis.shape[0]/2
-            randt = npr.random() * np.pi
-            randsd= npr.random() * x_axis.shape[0]/6
-            
-            
-            testgaussian = models.Gaussian2D(amplitude = 1, x_stddev = randsd,\
-                              y_stddev = randsd * 3, x_mean = randx, y_mean = randy, theta = randt)
-                            
-            tge = mpl.patches.Ellipse(xy=[x_axis.shape[0]/2 + randy, x_axis.shape[0]/2 + randx], width=randsd*3, height=randsd, angle = randt * (-180.0)/np.pi, fill = False, color = 'w') #testing the ellipse plotting
-            #print #yellowball WCS from data, find yellowball WCS here
-
-            for i in range(x_axis.shape[0]):
-                for j in range(x_axis.shape[1]):
-                    #if tester_image[i, j] > tester_image.max() * 0.607:
-                    #    tester_mask[i,j] = 0.5
-                        if tester_image[i, j] == tester_image.max():
-                            tester_mask[i,j] = 1
-        
-            ell8_2 = mpl.patches.Ellipse(xy=mean8, width=width8, height=height8, angle = angle8 * (-180.0/np.pi), linestyle = ':', fill = False) #testing the ellipse plotting
-            ell24_2 = mpl.patches.Ellipse(xy=mean24, width=width24, height=height24, angle = angle24 * (-180.0/np.pi), fill = False, linestyle = '--') #testing the ellipse plotting
-            
-            #set max of tester image
-            #Set all inside one sd to some color
-            
-            ax4 = plt.subplot(row, column, 3)
-            ax4.imshow(testgaussian(x_axis, y_axis))#, cmap = 'gray')
-            #ax4.add_patch(ell8_2)
-            dline = np.zeros(x_axis.shape[0])
-            for i in range(x_axis.shape[0]):
-                dline[i] = i
-            #ax4.plot(dline, dline)
-            ax4.add_patch(tge)
-            #ax4.add_patch(test_circx)
-            #ax4.add_patch(test_circy)
-            #ax4.add_patch(test_circb)
-            
-            #2d fit with 1 sigma ellipse 24um
-            ax4 = plt.subplot(row, column, 6, projection = self.w)
-            ax4.imshow(fit8(x_axis, y_axis)) #################FIX THIS
-            ax4.add_patch(ell8_2)
-            ax4.plot(dline, dline)
-                
-            #2d fit with 1 sigma ellipse 24um
-            ax4 = plt.subplot(row, column, 9, projection = self.w)
-            ax4.imshow(fit24(x_axis, y_axis)) #################FIX THIS
-            ax4.add_patch(ell24_2)
-            ax4.plot(dline, dline)
-            if sort_into_cut_folders:
-                cut_folder = 'Cut%s' % cut_val
-                if not os.path.exists(output_directory + cut_folder): #Checks if the cut folder exists, makes a new one if not
-                    print( cut_folder)
-                    os.makedirs(output_directory + cut_folder)
-            else: cut_folder = ''
-            
-            fig.suptitle(make_title(index), fontsize=20, y=0.99)
-            #plt.tight_layout()
-            fig.savefig(output_directory + cut_folder +'/'+ make_title(index) + '.png') #Dump the picture to an image file
-            plt.close()'''
             
 
     def show_gaussian(self, index):
@@ -745,16 +462,16 @@ class AstroImage:
         g = image8
         #ax.imshow(make_lupton_rgb(r, g, b, stretch=200, Q=0), norm=LogNorm())
         #ax.imshow(make_lupton_rgb(r, g, b, stretch=200, Q=0))
-        ax.imshow(make_lupton_rgb(r, g, b, stretch=200, Q=0))
-
+        ax.imshow(make_lupton_rgb(r, g, b, stretch=75, Q=0))
+        ax.set_xlabel('')
 
         
         #rg residuals
         ax2 = plt.subplot(row, column,2, title = 'residuals', projection = self.w)
         r = resid24
         g = resid8
-
-        ax2.imshow(make_lupton_rgb(r, g, b, stretch=200, Q=0))
+        #ax2.set_xlabel('')
+        ax2.imshow(make_lupton_rgb(r, g, b, stretch=75, Q=0))
         ax2.add_patch(ell8w)
         ax2.add_patch(ell24w)
         ax2.add_patch(usr_circlew)
@@ -841,7 +558,7 @@ class AstroImage:
             ax4.imshow(fit24(x_axis, y_axis)) #################FIX THIS
             ax4.add_patch(ell24_2)
             ax4.plot(dline, dline)
-
+        plt.tight_layout()
         #print(cut_val, cut_string)
         cuts_count[index] = cut_val
         
@@ -959,8 +676,9 @@ class AstroImage:
         patch_flag = num_bad_pixs
         return image, bad_pixel_map, patch_flag
 
-
-class choose_image_api():
+#class that obtains the images necessary for the 2D-gaussian to reconstruct FITS cutouts from user coordinates.
+#update_mosaic loads the mosaics from your computer, whilst update_mosaic_api loads it from Google Drive
+class choose_image():
     def __init__(self):
         self.path8 = None
         self.um8 = None
@@ -976,11 +694,10 @@ class choose_image_api():
         self.um24w = None
         self.um70 = None
         self.um70data = None 
-        self.um70w = None
+        self.um70w = None  
         
-        
-    def update_mosaic(self, l, b):
-        path = '.'
+    def update_mosaic_api(self, l, b):
+        #path = '.'
         #currently don't need the WCS files for 12, 24 um because they
         #are reprojections onto 8um coordinate grid
         #GWC added 'b' on 4/5/22. 
@@ -1275,20 +992,17 @@ class choose_image_api():
         if(self.path8 == path8 and self.path12 == path12 and self.path24==path24 and self.path70 ==path70):
             return 0
 
-        temp_path = "temp_mosaic"
-        
-        
 
         
         file_list = drive.ListFile({'q': f"title='{path8}' and trashed=false"}).GetList()
         if not file_list:
             print(f"File '{path8}' not found in Google Drive.")
         file_obj = file_list[0]
-        file_obj.GetContentFile(temp_path)
-        temp = fits.open(temp_path)[0]
-        self.um8 = temp.copy()
-        self.um8data = temp.data.copy()
-        self.um8w = wcs.WCS(temp.header).copy()
+        file_obj.GetContentFile(temp_path8)
+        temp = fits.open(temp_path8)[0]
+        self.um8 = temp#.copy()
+        self.um8data = temp.data#.copy()
+        self.um8w = wcs.WCS(temp.header)#.copy()
         self.path8 = path8
         
         
@@ -1296,38 +1010,667 @@ class choose_image_api():
         if not file_list:
             print(f"File '{path12}' not found in Google Drive.")
         file_obj = file_list[0]
-        file_obj.GetContentFile(temp_path)
-        temp = fits.open(temp_path)[0]
-        self.um12 = temp.copy()
-        self.um12data = temp.data.copy()
-        self.um12w = wcs.WCS(temp.header).copy()
+        file_obj.GetContentFile(temp_path12)
+        temp = fits.open(temp_path12)[0]
+        self.um12 = temp#.copy()
+        self.um12data = temp.data#.copy()
+        self.um12w = wcs.WCS(temp.header)#.copy()
         self.path12 = path12
         
         file_list = drive.ListFile({'q': f"title='{path24}' and trashed=false"}).GetList()
         if not file_list:
             print(f"File '{path24}' not found in Google Drive.")
         file_obj = file_list[0]
-        file_obj.GetContentFile(temp_path)
-        temp = fits.open(temp_path)[0]
-        self.um24 = temp.copy()
-        self.um24data = temp.data.copy()
-        self.um24w = wcs.WCS(temp.header).copy()
+        file_obj.GetContentFile(temp_path24)
+        temp = fits.open(temp_path24)[0]
+        self.um24 = temp#.copy()
+        self.um24data = temp.data#.copy()
+        self.um24w = wcs.WCS(temp.header)#.copy()
         self.path24 = path24
         
         file_list = drive.ListFile({'q': f"title='{path70}' and trashed=false"}).GetList()
         if not file_list:
             print(f"File '{path70}' not found in Google Drive.")
         file_obj = file_list[0]
-        file_obj.GetContentFile(temp_path)
-        temp = fits.open(temp_path)[0]
-        self.um70 = temp.copy()
-        self.um70data = temp.data.copy()
-        self.um70w = wcs.WCS(temp.header).copy()
+        file_obj.GetContentFile(temp_path70)
+        temp = fits.open(temp_path70)[0]
+        self.um70 = temp#.copy()
+        self.um70data = temp.data#.copy()
+        self.um70w = wcs.WCS(temp.header)#.copy()
         self.path70 = path70
         
-        os.remove(temp_path)
+        #os.remove(temp_path)
         
+    def update_mosaic(self, l, b):
+        if l > 1.5 and l <= 4.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_00300+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_00300_mosaic.fits')
+            path24 = os.path.join(
+                                   path,
+                                      'mosaics/MIPSGAL_24um_00300_mosaic.fits')
+            path70 = os.path.join(
+                                   path,
+                                       'mosaics/PACS_70um_00300_mosaic.fits')
+        elif l > 4.5 and l <= 7.5:
+            path8 = os.path.join(path,
+                                  'mosaics/GLM_00600+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                   'mosaics/WISE_12um_00600_mosaic.fits')
+            path24 = os.path.join(
+                                    path,
+                                       'mosaics/MIPSGAL_24um_00600_mosaic.fits')
+            path70 = os.path.join(
+                                    path,
+                                        'mosaics/PACS_70um_00600_mosaic.fits')
+        elif l > 7.5 and l <= 10.5:
+            path8 = os.path.join(path,
+                                  'mosaics/GLM_00900+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                   'mosaics/WISE_12um_00900_mosaic.fits')
+            path24 = os.path.join(
+                                    path,
+                                       'mosaics/MIPSGAL_24um_00900_mosaic.fits')
+            path70 = os.path.join(
+                                    path,
+                                        'mosaics/PACS_70um_00900_mosaic.fits')
+        elif l > 10.5 and l <= 13.5:
+            path8 = os.path.join(path,
+                                  'mosaics/GLM_01200+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                   'mosaics/WISE_12um_01200_mosaic.fits')
+            path24 = os.path.join(
+                                    path,
+                                       'mosaics/MIPSGAL_24um_01200_mosaic.fits')
+            path70 = os.path.join(
+                                    path,
+                                        'mosaics/PACS_70um_01200_mosaic.fits')
+        elif l > 13.5 and l <= 16.5:
+            path8 = os.path.join(path,
+                                  'mosaics/GLM_01500+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                   'mosaics/WISE_12um_01500_mosaic.fits')
+            path24 = os.path.join(
+                                    path,
+                                       'mosaics/MIPSGAL_24um_01500_mosaic.fits')
+            path70 = os.path.join(
+                                    path,
+                                        'mosaics/PACS_70um_01500_mosaic.fits')
+        elif l > 16.5 and l <= 19.5:
+            path8 = os.path.join(path,
+                                  'mosaics/GLM_01800+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                   'mosaics/WISE_12um_01800_mosaic.fits')
+            path24 = os.path.join(
+                                    path,
+                                       'mosaics/MIPSGAL_24um_01800_mosaic.fits')
+            path70 = os.path.join(
+                                    path,
+                                        'mosaics/PACS_70um_01800_mosaic.fits')
+        #Adding mosaics 021, 024, 027 on 10/17/23.
+        elif l > 19.5 and l <= 22.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_02100+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_02100_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/MIPSGAL_24um_02100_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/PACS_70um_02100_mosaic.fits')    
+        elif l > 22.5 and l <= 25.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_02400+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_02400_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/MIPSGAL_24um_02400_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/PACS_70um_02400_mosaic.fits')    
+        elif l > 25.5 and l <= 28.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_02700+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_02700_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/MIPSGAL_24um_02700_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/PACS_70um_02700_mosaic.fits')    
+        elif l > 28.5 and l <= 31.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_03000+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_03000_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/MIPSGAL_03000_mosaic_reprojected.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/PACS_70um_03000_mosaic.fits')
+        elif l > 31.5 and l <= 34.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_03300+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_03300_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/MIPSGAL_03300_mosaic_reprojected.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/PACS_70um_03300_mosaic.fits')
+        elif l > 34.5 and l <= 37.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_03600+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_03600_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/MIPSGAL_03600_mosaic_reprojected.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/PACS_70um_03600_mosaic.fits')
+        elif l > 37.5 and l <= 40.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_03900+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_03900_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/MIPSGAL_03900_mosaic_reprojected.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/PACS_70um_03900_mosaic.fits')
+        elif l > 40.5 and l <= 43.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_04200+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_04200_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/MIPSGAL_24um_04200_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/PACS_70um_04200_mosaic.fits')
+        elif l > 43.5 and l <= 46.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_04500+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_04500_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/MIPSGAL_24um_04500_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/PACS_70um_04500_mosaic.fits')       
+        elif l > 46.5 and l <= 49.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_04800+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_04800_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/MIPSGAL_24um_04800_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/PACS_70um_04800_mosaic.fits') 
+        elif l > 49.5 and l <= 52.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_05100+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_05100_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/MIPSGAL_24um_05100_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/PACS_70um_05100_mosaic.fits')
+        elif l > 52.5 and l <= 55.5:  
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_05400+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_05400_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/MIPSGAL_24um_05400_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/PACS_70um_05400_mosaic.fits')
+        elif l > 55.5 and l <= 58.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_05700+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_05700_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/MIPSGAL_24um_05700_mosaic.fits')
+            path70 = os.path.join(
+                    path,
+                    'mosaics/PACS_70um_05700_mosaic.fits')   
+        elif l > 58.5 and l <= 61.5:
+            path8 = os.path.join(path,
+                                     'mosaics/GLM_06000+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                      'mosaics/WISE_12um_06000_mosaic.fits')
+            path24 = os.path.join(
+                    path,
+                    'mosaics/MIPSGAL_24um_06000_mosaic.fits')
+            path70 = os.path.join(
+                    path,
+                    'mosaics/PACS_70um_06000_mosaic.fits')  
+        elif l > 61.5 and l <= 64.5:
+            path8 = os.path.join(path,
+                                     'mosaics/GLM_06300+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                      'mosaics/WISE_12um_06300_mosaic.fits')
+            path24 = os.path.join(
+                    path,
+                    'mosaics/MIPSGAL_24um_06300_mosaic.fits')
+            path70 = os.path.join(
+                    path,
+                    'mosaics/PACS_70um_06300_mosaic.fits')                   
+        elif l > 64.5 and l <= 65.5:
+            path8 = os.path.join(path,
+                                     'mosaics/GLM_06600+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                      'mosaics/WISE_12um_06600_mosaic.fits')
+            path24 = os.path.join(
+                    path,
+                    'mosaics/MIPSGAL_24um_06600_mosaic.fits')
+            path70 = os.path.join(
+                    path,
+                    'mosaics/PACS_70um_06600_mosaic.fits') 
+
+        # The following were added for Cyg-X by GW-C on 2/7/24.
+        elif l > 75.5 and l <= 76.5:
+            path8 = os.path.join(path,
+                                 'mosaics/CYGX_08um_07500+0050_mosaic.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/CYGX_12um_07500+0050_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/CYGX_24um_07500+0050_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/CYGX_70um_07500+0050_mosaic.fits')
+        elif l > 76.5 and l <= 79.5 and b < 0.82:
+            path8 = os.path.join(path,
+                                 'mosaics/CYGX_08um_07800-0085_mosaic.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/CYGX_12um_07800-0085_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/CYGX_24um_07800-0085_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/CYGX_70um_07800-0085_mosaic.fits')
+        elif l > 76.5 and l <= 79.5 and b >= 0.82:
+            path8 = os.path.join(path,
+                                 'mosaics/CYGX_08um_07800+0250_mosaic.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/CYGX_12um_07800+0250_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/CYGX_24um_07800+0250_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/CYGX_70um_07800+0250_mosaic.fits')
+        elif l > 79.5 and l <= 82.5 and b < 0.82:
+            path8 = os.path.join(path,
+                                 'mosaics/CYGX_08um_08100-0070_mosaic.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/CYGX_12um_08100-0070_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/CYGX_24um_08100-0070_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/CYGX_70um_08100-0070_mosaic.fits')
+        elif l > 79.5 and l <= 82.5 and b >= 0.82:
+            path8 = os.path.join(path,
+                                 'mosaics/CYGX_08um_08100+0235_mosaic.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/CYGX_12um_08100+0235_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/CYGX_24um_08100+0235_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/CYGX_70um_08100+0235_mosaic.fits')
+        elif l > 82.5 and l <= 83.0:
+            path8 = os.path.join(path,
+                                 'mosaics/CYGX_08um_08400+0005_mosaic.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/CYGX_12um_08400+0005_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/CYGX_24um_08400+0005_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/CYGX_70um_08400+0005_mosaic.fits')
+
+        #The following are for the SMOG region.  
+        #GWC: Something went wonky on 2/7/24 -- need to revisit how to cover SMOG.
+        elif l > 101.0 and l <= 105.59 and b < 3.06:
+            path8 = os.path.join(path,
+                                 'mosaics/SMOG_08um_10300_mosaic.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/SMOG_12um_10300_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/SMOG_24um_10300_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/SMOG_PACS_70um_10300_mosaic.fits')
+            # Replaced 'mosaics/SMOG_70um_10300_mosaic.fits') with PACS on 7/7/23
+        elif l > 101.0 and l <= 105.59 and b >= 3.06:
+            path8 = os.path.join(path,
+                                 'mosaics/SMOG_08um_10300_mosaic.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/SMOG_12um_10300_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/SMOG_24um_10300_mosaic_high_b.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/SMOG_PACS_70um_10300_mosaic.fits')
+        elif l > 105.59 and l <= 110.2:
+            path8 = os.path.join(path,
+                                 'mosaics/SMOG_08um_10700_mosaic.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/SMOG_12um_10700_mosaic.fits')
+            path24 = os.path.join(
+                path,
+                'mosaics/SMOG_24um_10700_mosaic.fits')
+            path70 = os.path.join(
+                path,
+                'mosaics/SMOG_PACS_70um_10700_mosaic.fits')
+            # Replaced 'mosaics/SMOG_70um_10700_mosaic.fits') with PACS on 7/7/23
         
+        elif l > 294.8 and l <= 295.5:
+            path8 = os.path.join(path,
+                                     'mosaics/GLM_29400+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                      'mosaics/WISE_12um_29400_mosaic.fits')
+            path24 = os.path.join(
+                    path,
+                    'mosaics/MIPSGAL_24um_29400_mosaic.fits')
+            path70 = os.path.join(
+                    path,
+                    'mosaics/PACS_70um_29400_mosaic.fits')              
+        elif l > 295.5 and l <= 298.5:
+            path8 = os.path.join(path,
+                                     'mosaics/GLM_29700+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                      'mosaics/WISE_12um_29700_mosaic.fits')
+            path24 = os.path.join(
+                    path,
+                    'mosaics/MIPSGAL_24um_29700_mosaic.fits')
+            path70 = os.path.join(
+                    path,
+                    'mosaics/PACS_70um_29700_mosaic.fits')
+        elif l > 298.5 and l <= 301.5:
+            path8 = os.path.join(path,
+                                     'mosaics/GLM_30000+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                      'mosaics/WISE_12um_30000_mosaic.fits')
+            path24 = os.path.join(
+                    path,
+                    'mosaics/MIPSGAL_24um_30000_mosaic.fits')
+            path70 = os.path.join(
+                    path,
+                    'mosaics/PACS_70um_30000_mosaic.fits')
+        elif l > 301.5 and l <= 304.5:
+            path8 = os.path.join(path,
+                                     'mosaics/GLM_30300+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                      'mosaics/WISE_12um_30300_mosaic.fits')
+            path24 = os.path.join(
+                    path,
+                    'mosaics/MIPSGAL_24um_30300_mosaic.fits')
+            path70 = os.path.join(
+                    path,
+                    'mosaics/PACS_70um_30300_mosaic.fits')
+        elif l > 304.5 and l <= 307.5:
+            path8 = os.path.join(path,
+                                     'mosaics/GLM_30600+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                      'mosaics/WISE_12um_30600_mosaic.fits')
+            path24 = os.path.join(
+                    path,
+                    'mosaics/MIPSGAL_24um_30600_mosaic.fits')
+            path70 = os.path.join(
+                    path,
+                    'mosaics/PACS_70um_30600_mosaic.fits')       
+        #Added these mosaics on 7/11/23. For some reason, many of the elif statements
+        #for regions I've done are not here. I added these above on 7/26/23. I had to
+        #copy them over from ExpertPhotom.py
+        #Adding more as I complete photometry for eacj sector.
+        elif l > 307.5 and l <= 310.5:
+            path8 = os.path.join(path,
+                                     'mosaics/GLM_30900+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                      'mosaics/WISE_12um_30900_mosaic.fits')
+            path24 = os.path.join(
+                    path,
+                    'mosaics/MIPSGAL_24um_30900_mosaic.fits')
+            path70 = os.path.join(
+                    path,
+                    'mosaics/PACS_70um_30900_mosaic.fits')
+        elif l > 310.5 and l <= 313.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_31200+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_31200_mosaic.fits')
+            path24 = os.path.join(
+                        path,
+                        'mosaics/MIPSGAL_24um_31200_mosaic.fits')
+            path70 = os.path.join(
+                        path,
+                        'mosaics/PACS_70um_31200_mosaic.fits')
+        elif l > 313.5 and l <= 316.5:
+            path8 = os.path.join(path,
+                                  'mosaics/GLM_31500+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                   'mosaics/WISE_12um_31500_mosaic.fits')
+            path24 = os.path.join(
+                         path,
+                         'mosaics/MIPSGAL_24um_31500_mosaic.fits')
+            path70 = os.path.join(
+                         path,
+                         'mosaics/PACS_70um_31500_mosaic.fits')    
+        elif l > 316.5 and l <= 319.5:
+            path8 = os.path.join(path,
+                                   'mosaics/GLM_31800+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                    'mosaics/WISE_12um_31800_mosaic.fits')
+            path24 = os.path.join(
+                          path,
+                          'mosaics/MIPSGAL_24um_31800_mosaic.fits')
+            path70 = os.path.join(
+                          path,
+                          'mosaics/PACS_70um_31800_mosaic.fits')      
+        elif l > 319.5 and l <= 322.5:
+            path8 = os.path.join(path,
+                                   'mosaics/GLM_32100+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                    'mosaics/WISE_12um_32100_mosaic.fits')
+            path24 = os.path.join(
+                          path,
+                          'mosaics/MIPSGAL_24um_32100_mosaic.fits')
+            path70 = os.path.join(
+                          path,
+                          'mosaics/PACS_70um_32100_mosaic.fits')   
+        elif l > 322.5 and l <= 325.5:
+            path8 = os.path.join(path,
+                                   'mosaics/GLM_32400+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                    'mosaics/WISE_12um_32400_mosaic.fits')
+            path24 = os.path.join(
+                          path,
+                          'mosaics/MIPSGAL_24um_32400_mosaic.fits')
+            path70 = os.path.join(
+                          path,
+                          'mosaics/PACS_70um_32400_mosaic.fits')          
+        elif l > 325.5 and l <= 328.5:
+            path8 = os.path.join(path,
+                                   'mosaics/GLM_32700+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                    'mosaics/WISE_12um_32700_mosaic.fits')
+            path24 = os.path.join(
+                          path,
+                          'mosaics/MIPSGAL_24um_32700_mosaic.fits')
+            path70 = os.path.join(
+                          path,
+                          'mosaics/PACS_70um_32700_mosaic.fits')         
+        elif l > 328.5 and l <= 331.5:
+            path8 = os.path.join(path,
+                                       'mosaics/GLM_33000+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                        'mosaics/WISE_12um_33000_mosaic.fits')
+            path24 = os.path.join(
+                              path,
+                              'mosaics/MIPSGAL_24um_33000_mosaic.fits')
+            path70 = os.path.join(
+                              path,
+                              'mosaics/PACS_70um_33000_mosaic.fits')   
+        elif l > 331.5 and l <= 334.5:
+            path8 = os.path.join(path,
+                                       'mosaics/GLM_33300+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                        'mosaics/WISE_12um_33300_mosaic.fits')
+            path24 = os.path.join(
+                              path,
+                              'mosaics/MIPSGAL_24um_33300_mosaic.fits')
+            path70 = os.path.join(
+                              path,
+                              'mosaics/PACS_70um_33300_mosaic.fits')           
+        elif l > 334.5 and l <= 337.5:
+            path8 = os.path.join(path,
+                                    'mosaics/GLM_33600+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_33600_mosaic.fits')
+            path24 = os.path.join(
+                                  path,
+                                  'mosaics/MIPSGAL_24um_33600_mosaic.fits')
+            path70 = os.path.join(
+                                  path,
+                                  'mosaics/PACS_70um_33600_mosaic.fits')  
+        elif l > 337.5 and l <= 340.5:
+            path8 = os.path.join(path,
+                                     'mosaics/GLM_33900+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                   'mosaics/WISE_12um_33900_mosaic.fits')
+            path24 = os.path.join(
+                                   path,
+                                   'mosaics/MIPSGAL_24um_33900_mosaic.fits')
+            path70 = os.path.join(
+                                   path,
+                                   'mosaics/PACS_70um_33900_mosaic.fits')        
+        elif l > 340.5 and l <= 343.5:
+            path8 = os.path.join(path,
+                                     'mosaics/GLM_34200+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                   'mosaics/WISE_12um_34200_mosaic.fits')
+            path24 = os.path.join(
+                                   path,
+                                   'mosaics/MIPSGAL_24um_34200_mosaic.fits')
+            path70 = os.path.join(
+                                   path,
+                                   'mosaics/PACS_70um_34200_mosaic.fits') 
+        elif l > 343.5 and l <= 346.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_34500+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_34500_mosaic.fits')
+            path24 = os.path.join(
+                                   path,
+                                      'mosaics/MIPSGAL_24um_34500_mosaic.fits')
+            path70 = os.path.join(
+                                   path,
+                                       'mosaics/PACS_70um_34500_mosaic.fits') 
+        elif l > 346.5 and l <= 349.5:
+            path8 = os.path.join(path,
+                                'mosaics/GLM_34800+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                 'mosaics/WISE_12um_34800_mosaic.fits')
+            path24 = os.path.join(
+                                  path,
+                                     'mosaics/MIPSGAL_24um_34800_mosaic.fits')
+            path70 = os.path.join(
+                                  path,
+                                      'mosaics/PACS_70um_34800_mosaic.fits') 
+        elif l > 349.5 and l <= 352.5:
+            path8 = os.path.join(path,
+                                'mosaics/GLM_35100+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                 'mosaics/WISE_12um_35100_mosaic.fits')
+            path24 = os.path.join(
+                                  path,
+                                     'mosaics/MIPSGAL_24um_35100_mosaic.fits')
+            path70 = os.path.join(
+                                  path,
+                                      'mosaics/PACS_70um_35100_mosaic.fits') 
+        elif l > 352.5 and l <= 355.5:
+            path8 = os.path.join(path,
+                                'mosaics/GLM_35400+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                 'mosaics/WISE_12um_35400_mosaic.fits')
+            path24 = os.path.join(
+                                  path,
+                                     'mosaics/MIPSGAL_24um_35400_mosaic.fits')
+            path70 = os.path.join(
+                                  path,
+                                      'mosaics/PACS_70um_35400_mosaic.fits') 
+        elif l > 355.5 and l <= 358.5:
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_35700+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_35700_mosaic.fits')
+            path24 = os.path.join(
+                                   path,
+                                      'mosaics/MIPSGAL_24um_35700_mosaic.fits')
+            path70 = os.path.join(
+                                   path,
+                                       'mosaics/PACS_70um_35700_mosaic.fits')    
+        elif (l > 358.5 and l <= 360.1) or (l > -0.1 and l <= 1.5):
+            path8 = os.path.join(path,
+                                 'mosaics/GLM_00000+0000_mosaic_I4.fits')
+            path12 = os.path.join(path,
+                                  'mosaics/WISE_12um_00000_mosaic.fits')
+            path24 = os.path.join(
+                                   path,
+                                      'mosaics/MIPSGAL_24um_00000_mosaic.fits')
+            path70 = os.path.join(
+                                   path,
+                                       'mosaics/PACS_70um_00000_mosaic.fits')
+        else:
+            # GWC revised print statement from "outside the pilot..."
+            print('Your YB is outside the region.')
+            print('Please try again.')
+            sys.exit()
+
+        temp = fits.open(path8)[0]
+        self.um8 = temp
+        self.um8data = temp.data
+        self.um8w = wcs.WCS(temp.header)
+        temp = fits.open(path12)[0]
+        self.um12 = temp
+        self.um12data = temp.data
+        self.um12w = wcs.WCS(temp.header)
+        temp = fits.open(path24)[0]
+        self.um24 = temp
+        self.um24data = temp.data
+        self.um24w = wcs.WCS(temp.header)
+        temp = fits.open(path70)[0]
+        self.um70 = temp
+        self.um70data = temp.data
+        self.um70w = wcs.WCS(temp.header)
         
         
 #class that does the masking and interpolation, returns masked, blanked, interpolated, and residual
@@ -1424,9 +1767,14 @@ class get_residual():
         YB_rad = data[YBnum-1]['r']
         #Use the location to determine the correct image files to use
         #GWC added YB_lat on 4/5/22.
-        
-        Mosaics.update_mosaic(YB_long, YB_lat)
-        
+        #if use_api:
+        #    Mosaics.update_mosaic_api(YB_long, YB_lat)
+        #else:
+        #    Mosaics.update_mosaic(YB_long, YB_lat)
+        try:
+            Mosaics.update_mosaic(YB_long, YB_lat)
+        except:
+            Mosaics.update_mosaic_api(YB_long, YB_lat)
 
 
         
@@ -1506,7 +1854,7 @@ class get_residual():
                          size=size,
                          wcs=image.um70w)'''
 
-        fitcopy8 = Mosaics.um8.copy()
+        fitcopy8 = Mosaics.um8#.copy()
         fitcopy8.data = cut8.data
         fitcopy8.header.update(cut8.wcs.to_header())
         self.w = fitcopy8
@@ -1515,7 +1863,7 @@ class get_residual():
         fitcopy12.data = cut12.data
         fitcopy12.header.update(cut12.wcs.to_header())'''
 
-        fitcopy24 = Mosaics.um24.copy()
+        fitcopy24 = Mosaics.um24#.copy()
         fitcopy24.data = cut24.data
         fitcopy24.header.update(cut24.wcs.to_header())
 
@@ -1541,7 +1889,7 @@ class get_residual():
         if userdata[YBnum][header] != '':
             vertices = ast.literal_eval(userdata[YBnum][header])
             interp = do_interp(img, vertices)
-            self.resid8 = interp.resid.copy()
+            self.resid8 = interp.resid#.copy()
         else:
             print(f'No coordinates for YB {YBnum} at 8um')
             self.resid8 = np.zeros_like(workmask8)
@@ -1552,7 +1900,7 @@ class get_residual():
         if userdata[YBnum][header] != '':
             vertices = ast.literal_eval(userdata[YBnum][header])
             interp = do_interp(img, vertices)
-            self.resid24 = interp.resid.copy()
+            self.resid24 = interp.resid#.copy()
         else:
             print(f'No coordinates for YB {YBnum} at 24um')
             self.resid24 = np.zeros_like(workmask8)
@@ -1580,32 +1928,30 @@ catalog_name = os.path.join(path, 'USE_THIS_CATALOG_ybcat_MWP_with_ID.csv')
 data = ascii.read(catalog_name, delimiter = ',')
 
 if not os.path.exists(output_directory):
-    # Create the folder if it doesn't exist
+    # Create the output directory folder if it doesn't exist
     os.makedirs(output_directory)
     
     
 if not os.path.exists(outfilename):
-    #creats file if it doesnt exist
+    #creats outfile if it doesnt exist
     column_names = 'YB ID, l, b, User Radius, 8um Amplitude (MJy/Sr), D[8um Amplitude], 8um x mean (pix), D[8um x mean ], 8um y mean (pix), D[8um y mean], 8um dist from center (pix), 8um x sd dev (arcsec), D[8um x sd dev ], 8um y st dev (arcsec), D[8um y st dev], 8 um theta, D[8 um theta], 8um residual (Jy), 8um residual/input flux (ratio), 24um amplitude (MJy/Sr), D[24um amplitude, 24um x mean (pix), D[24um x mean], 24um y mean (pix), D[24um y mean], 24um Dist from center (pix), 24um x sd dev (arcsec), D[24um x sd dev], 24um y st dev (arcsec), D[24um y st dev ], 24um theta, D[24um theta], 24um residual (Jy), 24um residual/input flux ratio, dist between means (arcsec), Patch Flag, classification string, cut value'
     df = pd.DataFrame(columns=column_names.split(', '))
-
     df.to_csv(outfilename, index=False)
 
 '''YB1=data['ID'][0]
 YB2=YB1+len(data) '''
 cuts_count = np.full(len(data), -1)
 
-#for i in range(1650,1655):
-#careful with range here to select the YBs for which you have background-subtracted, post photometry images
-#for i in range(1153,YB2):
-startYB = 1
+temp_path70 = "temp_mosaic70"
+temp_path24 = "temp_mosaic24"
+temp_path12 = "temp_mosaic12"
+temp_path8  = "temp_mosaic8"
+
+startYB = 789
 endYB = 6176
-Mosaics = choose_image_api()
+Mosaics = choose_image()
 
-
-
-#check all mosaics except for 3028-3034 values
-for i in range(startYB, endYB+1): #range(startYB,endYB+1):  #2547  
+for i in range(startYB, endYB+1):  
 
     df = pd.read_csv(outfilename, index_col='YB ID')
 
@@ -1613,10 +1959,13 @@ for i in range(startYB, endYB+1): #range(startYB,endYB+1):  #2547
     if not twocolor_image30.skip:
         print("YB", i)
         twocolor_image30.show_gaussian(i)
-
+    df.sort_values(by='YB ID', inplace=True)
     df.to_csv(outfilename, index=True)
     
-    
+os.remove(temp_path70)
+os.remove(temp_path24)
+os.remove(temp_path12)
+os.remove(temp_path8)
 #f.close()
 
 histdata = ascii.read(output_directory + "2D_Gaussian_Fits.csv", delimiter = ',')
